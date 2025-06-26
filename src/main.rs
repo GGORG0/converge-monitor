@@ -10,7 +10,7 @@ use crate::scraping::{get, js_estree::get_js_estree, js_url::scrape_js_url};
 
 mod scraping;
 
-static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
 pub static HTTP_CLIENT: LazyLock<Client> = LazyLock::new(|| {
     Client::builder()
