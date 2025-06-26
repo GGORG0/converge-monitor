@@ -1,16 +1,15 @@
 use color_eyre::eyre::{OptionExt, Result};
 use scraper::Html;
+use tracing::instrument;
 
-use crate::{HTTP_CLIENT, scraping::BASE_URL};
+use crate::scraping::{get, BASE_URL};
 
-async fn get_html() -> Result<String> {
-    Ok(HTTP_CLIENT.get(BASE_URL).send().await?.text().await?)
-}
-
+#[instrument]
 fn parse_html(html: &str) -> Html {
     Html::parse_document(html)
 }
 
+#[instrument]
 fn extract_script_urls(html: &Html) -> Vec<String> {
     html.select(&scraper::Selector::parse("script[src]").unwrap())
         .filter_map(|el| el.value().attr("src"))
@@ -18,18 +17,21 @@ fn extract_script_urls(html: &Html) -> Vec<String> {
         .collect()
 }
 
+#[instrument]
 fn pick_script_url(urls: Vec<String>) -> Option<String> {
     const URL_PREFIX: &str = "./assets/index-";
     urls.into_iter().find(|url| url.starts_with(URL_PREFIX))
 }
 
+#[instrument]
 fn format_script_url(url: &str) -> String {
     let url = url.trim_start_matches("./");
     format!("{BASE_URL}/{url}")
 }
 
-pub async fn scrape_js_urls() -> Result<String> {
-    let html = get_html().await?;
+#[instrument]
+pub async fn scrape_js_url() -> Result<String> {
+    let html = get(BASE_URL).await?;
     let parsed_html = parse_html(&html);
 
     let script_urls = extract_script_urls(&parsed_html);

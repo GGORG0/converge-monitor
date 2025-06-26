@@ -1,6 +1,12 @@
 use std::sync::LazyLock;
 
+use color_eyre::eyre::Result;
 use reqwest::Client;
+use tracing::level_filters::LevelFilter;
+use tracing_error::ErrorLayer;
+use tracing_subscriber::{fmt::format::FmtSpan, layer::SubscriberExt, util::SubscriberInitExt};
+
+use crate::scraping::{get, js_estree::get_js_estree, js_url::scrape_js_url};
 
 mod scraping;
 
@@ -14,7 +20,27 @@ pub static HTTP_CLIENT: LazyLock<Client> = LazyLock::new(|| {
 });
 
 #[tokio::main]
-async fn main() {
-    println!("Hello, world!");
-    dbg!(scraping::js_url::scrape_js_urls().await);
+async fn main() -> Result<()> {
+    color_eyre::install()?;
+    init_tracing()?;
+
+    let js_url = scrape_js_url().await?;
+    let js = get(&js_url).await?;
+    let estree = get_js_estree(&js).await?;
+
+    Ok(())
+}
+
+fn init_tracing() -> Result<()> {
+    tracing_subscriber::Registry::default()
+        .with(tracing_subscriber::fmt::layer().with_span_events(FmtSpan::NEW | FmtSpan::CLOSE))
+        .with(ErrorLayer::default())
+        .with(
+            tracing_subscriber::EnvFilter::builder()
+                .with_default_directive(LevelFilter::INFO.into())
+                .from_env()?,
+        )
+        .try_init()?;
+
+    Ok(())
 }
