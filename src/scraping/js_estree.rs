@@ -10,19 +10,19 @@ use tracing::instrument;
 
 static ALLOCATOR: LazyLock<Allocator> = LazyLock::new(Allocator::default);
 
-#[instrument]
+#[instrument(skip(js))]
 fn parse_js(js: &str) -> ParserReturn<'_> {
     let source_type = SourceType::mjs();
 
     Parser::new(&ALLOCATOR, js, source_type).parse()
 }
 
-#[instrument]
+#[instrument(skip(source, program))]
 fn to_utf16(source: &str, program: &mut Program<'_>) {
     Utf8ToUtf16::new(source).convert_program(program)
 }
 
-#[instrument]
+#[instrument(skip(js))]
 pub async fn get_js_estree<'a>(js: &'a str) -> Result<ParserReturn<'a>> {
     let mut parsed = parse_js(js);
 

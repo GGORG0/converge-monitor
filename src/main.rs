@@ -26,7 +26,7 @@ async fn main() -> Result<()> {
 
     let js_url = scrape_js_url().await?;
     let js = get(&js_url).await?;
-    let estree = get_js_estree(&js).await?;
+    let parsed = get_js_estree(&js).await?;
 
     Ok(())
 }

@@ -4,12 +4,12 @@ use tracing::instrument;
 
 use crate::scraping::{get, BASE_URL};
 
-#[instrument]
+#[instrument(skip(html))]
 fn parse_html(html: &str) -> Html {
     Html::parse_document(html)
 }
 
-#[instrument]
+#[instrument(skip(html))]
 fn extract_script_urls(html: &Html) -> Vec<String> {
     html.select(&scraper::Selector::parse("script[src]").unwrap())
         .filter_map(|el| el.value().attr("src"))
@@ -17,7 +17,7 @@ fn extract_script_urls(html: &Html) -> Vec<String> {
         .collect()
 }
 
-#[instrument]
+#[instrument(skip(urls))]
 fn pick_script_url(urls: Vec<String>) -> Option<String> {
     const URL_PREFIX: &str = "./assets/index-";
     urls.into_iter().find(|url| url.starts_with(URL_PREFIX))
