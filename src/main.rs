@@ -7,6 +7,7 @@ use tracing_error::ErrorLayer;
 use tracing_subscriber::{fmt::format::FmtSpan, layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::scraping::{
+    extract_data::get_root_element_name,
     get,
     js_estree::{get_js_estree, print_diagnostics},
     js_url::scrape_js_url,
@@ -40,6 +41,12 @@ async fn main() -> Result<()> {
     if parsed.panicked {
         return Err(eyre!("Parsing JS panicked"));
     }
+
+    let program = parsed.program;
+
+    let root_element_name = get_root_element_name(&program)?;
+
+    dbg!(root_element_name);
 
     Ok(())
 }

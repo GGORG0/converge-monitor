@@ -3,6 +3,7 @@ use tracing::instrument;
 
 use crate::HTTP_CLIENT;
 
+pub mod extract_data;
 pub mod js_estree;
 pub mod js_url;
 
