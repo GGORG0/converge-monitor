@@ -1,12 +1,16 @@
 use std::sync::LazyLock;
 
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{Result, eyre};
 use reqwest::Client;
 use tracing::level_filters::LevelFilter;
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{fmt::format::FmtSpan, layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::scraping::{get, js_estree::get_js_estree, js_url::scrape_js_url};
+use crate::scraping::{
+    get,
+    js_estree::{get_js_estree, print_diagnostics},
+    js_url::scrape_js_url,
+};
 
 mod scraping;
 
@@ -26,7 +30,16 @@ async fn main() -> Result<()> {
 
     let js_url = scrape_js_url().await?;
     let js = get(&js_url).await?;
-    let parsed = get_js_estree(&js).await?;
+
+    let js_binding = js.clone();
+    let parsed = get_js_estree(&js_binding).await?;
+
+    if !parsed.errors.is_empty() {
+        print_diagnostics(parsed.errors, js);
+    }
+    if parsed.panicked {
+        return Err(eyre!("Parsing JS panicked"));
+    }
 
     Ok(())
 }

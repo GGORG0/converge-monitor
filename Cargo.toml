@@ -8,6 +8,7 @@ color-eyre = "0.6.5"
 oxc_allocator = "0.75.0"
 oxc_ast = "0.75.0"
 oxc_ast_visit = { version = "0.75.0", features = ["serialize"] }
+oxc_diagnostics = "0.75.0"
 oxc_parser = "0.75.0"
 oxc_span = "0.75.0"
 reqwest = { version = "0.12.20", default-features = false, features = ["rustls-tls", "http2", "charset"] }

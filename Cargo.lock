@@ -202,6 +202,7 @@ dependencies = [
  "oxc_allocator",
  "oxc_ast",
  "oxc_ast_visit",
+ "oxc_diagnostics",
  "oxc_parser",
  "oxc_span",
  "reqwest",

@@ -6,7 +6,7 @@ use oxc_ast::ast::Program;
 use oxc_ast_visit::utf8_to_utf16::Utf8ToUtf16;
 use oxc_parser::{Parser, ParserReturn};
 use oxc_span::SourceType;
-use tracing::instrument;
+use tracing::{error, instrument};
 
 static ALLOCATOR: LazyLock<Allocator> = LazyLock::new(Allocator::default);
 
@@ -29,4 +29,12 @@ pub async fn get_js_estree<'a>(js: &'a str) -> Result<ParserReturn<'a>> {
     to_utf16(js, &mut parsed.program);
 
     Ok(parsed)
+}
+
+pub fn print_diagnostics(diagnostics: Vec<oxc_diagnostics::OxcDiagnostic>, js: String) {
+    for diagnostic in diagnostics {
+        let diagnostic = diagnostic.with_source_code(js.clone());
+
+        error!(diagnostic = ?diagnostic, "Error while pasrsing JS");
+    }
 }
