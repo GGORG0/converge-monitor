@@ -6,7 +6,7 @@ use oxc_ast::ast::{
 };
 use tracing::instrument;
 
-use crate::scraping::extract_data::top_level_elements::TopLevelElement;
+use crate::scraping::extract_data::top_level_elements::{ArrowFn, get_top_level_elements};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Platform {
@@ -14,11 +14,13 @@ pub struct Platform {
     image: String,
 }
 
-#[instrument(skip(program, top_level_elements))]
+#[instrument(skip(program, root_element))]
 pub fn get_platforms<'a>(
     program: &'a Program,
-    top_level_elements: &'a [&'a TopLevelElement],
+    root_element: &'a ArrowFn<'a>,
 ) -> Result<Vec<Platform>> {
+    let top_level_elements = get_top_level_elements(root_element)?;
+
     if top_level_elements.len() != 7 {
         return Err(eyre!(
             "Expected 7 top-level elements, found {}",

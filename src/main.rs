@@ -8,9 +8,7 @@ use tracing_subscriber::{fmt::format::FmtSpan, layer::SubscriberExt, util::Subsc
 
 use crate::scraping::{
     extract_data::{
-        platforms::get_platforms,
-        rewards::get_rewards,
-        top_level_elements::{extract_root_element, get_top_level_elements},
+        platforms::get_platforms, rewards::get_rewards, top_level_elements::extract_root_element,
     },
     get,
     js_estree::{get_js_estree, print_diagnostics},
@@ -49,9 +47,8 @@ async fn main() -> Result<()> {
     let program = parsed.program;
 
     let root_element = extract_root_element(&program)?;
-    let top_level_elements = get_top_level_elements(root_element)?;
 
-    let platforms = get_platforms(&program, &top_level_elements)?;
+    let platforms = get_platforms(&program, root_element)?;
     dbg!(platforms);
 
     let rewards = get_rewards(root_element)?;
