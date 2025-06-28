@@ -1,4 +1,7 @@
-use color_eyre::eyre::{Result, bail};
+use color_eyre::{
+    Section, SectionExt,
+    eyre::{Result, eyre},
+};
 use tracing::instrument;
 
 use crate::{
@@ -30,10 +33,23 @@ pub async fn scrape() -> Result<ExtractedData> {
     let parsed = get_js_estree(&js_binding).await?;
 
     if !parsed.errors.is_empty() {
-        print_diagnostics(parsed.errors, js);
+        print_diagnostics(parsed.errors.clone(), js.clone());
     }
     if parsed.panicked {
-        bail!("Parsing JS panicked");
+        return Err(if parsed.errors.is_empty() {
+            eyre!("Parsing JS panicked")
+        } else {
+            parsed
+                .errors
+                .into_iter()
+                .map(|diagnostic| diagnostic.with_source_code(js.clone()))
+                .enumerate()
+                .fold(eyre!("Parsing JS panicked"), |err, (idx, diagnostic)| {
+                    err.with_section(|| {
+                        format!("{diagnostic:?}").header(format!("Diagnostic #{}", idx + 1))
+                    })
+                })
+        });
     }
 
     let program = parsed.program;

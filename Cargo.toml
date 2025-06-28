@@ -11,10 +11,26 @@ oxc_ast_visit = { version = "0.75.0", features = ["serialize"] }
 oxc_diagnostics = "0.75.0"
 oxc_parser = "0.75.0"
 oxc_span = "0.75.0"
-reqwest = { version = "0.12.20", default-features = false, features = ["rustls-tls", "http2", "charset"] }
+reqwest = { version = "0.12.20", default-features = false, features = [
+    "rustls-tls",
+    "http2",
+    "charset",
+] }
 scraper = "0.23.1"
 serde_json = "1.0.140"
 tokio = { version = "1.45.1", features = ["full"] }
 tracing = "0.1.41"
 tracing-error = "0.2.1"
-tracing-subscriber = { version = "0.3.19", features = ["chrono", "json", "env-filter", "local-time", "serde", "serde_json", "time"] }
+tracing-subscriber = { version = "0.3.19", features = [
+    "chrono",
+    "json",
+    "env-filter",
+    "local-time",
+    "serde",
+    "serde_json",
+    "time",
+] }
+
+# Optimize performance in debug builds
+[profile.dev.package.backtrace]
+opt-level = 3
