@@ -42,5 +42,6 @@ RUN mkdir -p /app/target/release
 RUN cp target/$(xx-cargo --print-target-triple)/release/converge-monitor /app/target/release
 
 FROM scratch AS runtime
+WORKDIR /data
 COPY --from=builder /app/target/release/converge-monitor /converge-monitor
 ENTRYPOINT ["/converge-monitor"]

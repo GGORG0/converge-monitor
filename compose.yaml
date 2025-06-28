@@ -4,5 +4,7 @@ services:
     pull_policy: always
     build:
       context: .
+    volumes:
+      - ./data:/data
     env_file: .env
     restart: unless-stopped
