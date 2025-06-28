@@ -7,9 +7,7 @@ use tracing_error::ErrorLayer;
 use tracing_subscriber::{fmt::format::FmtSpan, layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::scraping::{
-    extract_data::{
-        platforms::get_platforms, rewards::get_rewards, top_level_elements::extract_root_element,
-    },
+    extract_data::ExtractedData,
     get,
     js_estree::{get_js_estree, print_diagnostics},
     js_url::scrape_js_url,
@@ -46,13 +44,8 @@ async fn main() -> Result<()> {
 
     let program = parsed.program;
 
-    let root_element = extract_root_element(&program)?;
-
-    let platforms = get_platforms(&program, root_element)?;
-    dbg!(platforms);
-
-    let rewards = get_rewards(root_element)?;
-    dbg!(rewards);
+    let data = ExtractedData::extract(&program)?;
+    dbg!(data);
 
     Ok(())
 }
