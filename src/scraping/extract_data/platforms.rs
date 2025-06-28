@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use color_eyre::eyre::{ContextCompat, Result, eyre};
+use color_eyre::eyre::{ContextCompat, Result, bail};
 use oxc_ast::ast::{
     Argument, ArrayExpressionElement, Expression, ObjectPropertyKind, Program, Statement,
 };
@@ -22,10 +22,10 @@ pub fn get_platforms<'a>(
     let top_level_elements = get_top_level_elements(root_element)?;
 
     if top_level_elements.len() != 7 {
-        return Err(eyre!(
+        bail!(
             "Expected 7 top-level elements, found {}",
             top_level_elements.len()
-        ));
+        );
     }
 
     //       children: [
@@ -48,9 +48,9 @@ pub fn get_platforms<'a>(
         if let Some(Argument::Identifier(ident)) = top_level_element.arguments.first() {
             ident.name
         } else {
-            return Err(eyre!(
+            bail!(
                 "Expected first argument of top-level element to be an Identifier"
-            ));
+            );
         };
 
     // const ...,

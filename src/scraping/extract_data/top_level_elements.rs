@@ -1,4 +1,4 @@
-use color_eyre::eyre::{ContextCompat, Result, eyre};
+use color_eyre::eyre::{ContextCompat, Result, bail};
 use oxc_ast::ast::{
     Argument, ArrayExpressionElement, ArrowFunctionExpression, CallExpression, Expression,
     ObjectPropertyKind, Program, Statement,
@@ -40,9 +40,7 @@ fn get_root_element_name(program: &Program) -> Result<String> {
     {
         call_expr
     } else {
-        return Err(eyre!(
-            "Expected first (and only) argument of createRoot().render() to be a CallExpression"
-        ));
+        bail!("Expected first (and only) argument of createRoot().render() to be a CallExpression");
     };
 
     //   x.jsx(Y.StrictMode, { children: x.jsx(Wm, {}) })
@@ -54,9 +52,7 @@ fn get_root_element_name(program: &Program) -> Result<String> {
     {
         obj_expr
     } else {
-        return Err(eyre!(
-            "Expected second argument of createRoot().render(x.jsx()) to be an ObjectExpression"
-        ));
+        bail!("Expected second argument of createRoot().render(x.jsx()) to be an ObjectExpression");
     };
 
     //   x.jsx(Y.StrictMode, { children: x.jsx(Wm, {}) })
@@ -81,9 +77,7 @@ fn get_root_element_name(program: &Program) -> Result<String> {
     {
         ident.name
     } else {
-        return Err(eyre!(
-            "Expected first argument of 'children: x.jsx()' call expression to be an Identifier"
-        ));
+        bail!("Expected first argument of 'children: x.jsx()' call expression to be an Identifier");
     };
 
     Ok(root_element_name.into_string())
@@ -206,9 +200,7 @@ pub fn get_top_level_elements<'a>(
     {
         obj_expr
     } else {
-        return Err(eyre!(
-            "Expected second argument of () => x.jsxs(\"main\") to be an ObjectExpression"
-        ));
+        bail!("Expected second argument of () => x.jsxs(\"main\") to be an ObjectExpression");
     };
 
     //     return x.jsxs("main", {
