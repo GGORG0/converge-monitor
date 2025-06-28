@@ -1,0 +1,8 @@
+services:
+  converge-monitor:
+    image: ghcr.io/ggorg0/converge-monitor:master
+    pull_policy: always
+    build:
+      context: .
+    env_file: .env
+    restart: unless-stopped
