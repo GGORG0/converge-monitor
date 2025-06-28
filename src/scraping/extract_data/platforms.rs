@@ -14,11 +14,32 @@ pub struct Platform {
     image: String,
 }
 
-#[instrument(skip(program, top_level_element))]
+#[instrument(skip(program, top_level_elements))]
 pub fn get_platforms<'a>(
     program: &'a Program,
-    top_level_element: &'a TopLevelElement,
+    top_level_elements: &'a [&'a TopLevelElement],
 ) -> Result<Vec<Platform>> {
+    if top_level_elements.len() != 7 {
+        return Err(eyre!(
+            "Expected 7 top-level elements, found {}",
+            top_level_elements.len()
+        ));
+    }
+
+    //       children: [
+    //         x.jsx(Vp, {}),
+    //         x.jsx(Bp, {}),
+    //           ^^^^^^^^^^^
+    //         x.jsx($m, {}),
+    //         x.jsx(Zp, {}),
+    //         x.jsx(Up, {}),
+    //         x.jsx(Hp, {}),
+    //         x.jsx(Qd, {}),
+    //       ],
+    let top_level_element = top_level_elements
+        .get(1)
+        .context("Failed to find platform section top-level element")?;
+
     //         x.jsx(Bp, {}),
     //               ^^
     let top_level_element_name =

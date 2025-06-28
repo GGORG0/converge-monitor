@@ -1,4 +1,4 @@
-use color_eyre::eyre::{eyre, ContextCompat, Result};
+use color_eyre::eyre::{ContextCompat, Result, eyre};
 use oxc_ast::ast::{
     Argument, ArrayExpressionElement, ArrowFunctionExpression, CallExpression, Expression,
     ObjectPropertyKind, Program, Statement,
@@ -145,7 +145,7 @@ pub fn extract_root_element<'a>(program: &'a Program) -> Result<&'a ArrowFn<'a>>
 pub type TopLevelElement<'a> = oxc_allocator::Box<'a, CallExpression<'a>>;
 
 #[instrument(skip(root_element))]
-fn get_all_top_level_elements<'a>(
+pub fn get_top_level_elements<'a>(
     root_element: &'a ArrowFn<'a>,
 ) -> Result<Vec<&'a TopLevelElement<'a>>> {
     // const ...,
@@ -272,35 +272,4 @@ fn get_all_top_level_elements<'a>(
         .collect::<Vec<_>>();
 
     Ok(top_level_elements)
-}
-
-pub struct TopLevelElements<'a> {
-    pub platform_section: &'a TopLevelElement<'a>,
-    pub reward_section: &'a TopLevelElement<'a>,
-}
-
-#[instrument(skip(root_element))]
-pub fn extract_top_level_elements<'a>(
-    root_element: &'a ArrowFn<'a>,
-) -> Result<TopLevelElements<'a>> {
-    let top_level_elements = get_all_top_level_elements(root_element)?;
-
-    if top_level_elements.len() != 7 {
-        return Err(eyre!(
-            "Expected 7 top-level elements, found {}",
-            top_level_elements.len()
-        ));
-    }
-
-    let platform_section = top_level_elements
-        .get(1)
-        .context("Failed to find platform section top-level element")?;
-    let reward_section = top_level_elements
-        .get(2)
-        .context("Failed to find reward section top-level element")?;
-
-    Ok(TopLevelElements {
-        platform_section,
-        reward_section,
-    })
 }

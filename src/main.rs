@@ -10,7 +10,7 @@ use crate::scraping::{
     extract_data::{
         platforms::get_platforms,
         rewards::get_rewards,
-        top_level_elements::{extract_root_element, extract_top_level_elements},
+        top_level_elements::{extract_root_element, get_top_level_elements},
     },
     get,
     js_estree::{get_js_estree, print_diagnostics},
@@ -49,10 +49,9 @@ async fn main() -> Result<()> {
     let program = parsed.program;
 
     let root_element = extract_root_element(&program)?;
-    let top_level_elements = extract_top_level_elements(root_element)?;
+    let top_level_elements = get_top_level_elements(root_element)?;
 
-    let platform_section = top_level_elements.platform_section;
-    let platforms = get_platforms(&program, platform_section)?;
+    let platforms = get_platforms(&program, &top_level_elements)?;
     dbg!(platforms);
 
     let rewards = get_rewards(root_element)?;
