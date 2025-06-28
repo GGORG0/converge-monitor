@@ -5,6 +5,8 @@ use oxc_ast::ast::{
 };
 use tracing::instrument;
 
+pub type ArrowFn<'a> = oxc_allocator::Box<'a, ArrowFunctionExpression<'a>>;
+
 #[instrument(skip(program))]
 fn get_root_element_name(program: &Program) -> Result<String> {
     // Gd.createRoot(document.getElementById("app")).render(
@@ -88,10 +90,7 @@ fn get_root_element_name(program: &Program) -> Result<String> {
 }
 
 #[instrument(skip(program))]
-pub fn get_root_element<'a>(
-    program: &'a Program,
-    root_element_name: &str,
-) -> Result<&'a oxc_allocator::Box<'a, ArrowFunctionExpression<'a>>> {
+fn get_root_element<'a>(program: &'a Program, root_element_name: &str) -> Result<&'a ArrowFn<'a>> {
     // const ...,
     //   Bm = () => {
     //        ^^^^^^^...
@@ -135,11 +134,19 @@ pub fn get_root_element<'a>(
     Ok(root_element)
 }
 
+#[instrument(skip(program))]
+pub fn extract_root_element<'a>(program: &'a Program) -> Result<&'a ArrowFn<'a>> {
+    let root_element_name = get_root_element_name(program)?;
+    let root_element = get_root_element(program, &root_element_name)?;
+
+    Ok(root_element)
+}
+
 pub type TopLevelElement<'a> = oxc_allocator::Box<'a, CallExpression<'a>>;
 
 #[instrument(skip(root_element))]
 fn get_all_top_level_elements<'a>(
-    root_element: &'a oxc_allocator::Box<'a, ArrowFunctionExpression<'a>>,
+    root_element: &'a ArrowFn<'a>,
 ) -> Result<Vec<&'a TopLevelElement<'a>>> {
     // const ...,
     //   Bm = () => {
@@ -272,10 +279,10 @@ pub struct TopLevelElements<'a> {
     pub reward_section: &'a TopLevelElement<'a>,
 }
 
-#[instrument(skip(program))]
-pub fn extract_top_level_elements<'a>(program: &'a Program) -> Result<TopLevelElements<'a>> {
-    let root_element_name = get_root_element_name(program)?;
-    let root_element = get_root_element(program, &root_element_name)?;
+#[instrument(skip(root_element))]
+pub fn extract_top_level_elements<'a>(
+    root_element: &'a ArrowFn<'a>,
+) -> Result<TopLevelElements<'a>> {
     let top_level_elements = get_all_top_level_elements(root_element)?;
 
     if top_level_elements.len() != 7 {
