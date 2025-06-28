@@ -5,7 +5,7 @@ FROM --platform=$BUILDPLATFORM tonistiigi/xx AS xx
 FROM --platform=$BUILDPLATFORM rust:alpine AS chef
 COPY --from=xx / /
 
-RUN apk add clang lld
+RUN apk add clang lld build-base musl-dev
 RUN cargo install cargo-chef 
 WORKDIR /app
 
