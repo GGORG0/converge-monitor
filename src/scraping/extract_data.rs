@@ -1,5 +1,6 @@
 use color_eyre::eyre::Result;
 use oxc_ast::ast::Program;
+use serde::{Deserialize, Serialize};
 
 use crate::scraping::extract_data::{
     platforms::{Platform, get_platforms},
@@ -11,10 +12,14 @@ pub mod platforms;
 pub mod rewards;
 pub mod top_level_elements;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExtractedData {
     pub platforms: Vec<Platform>,
     pub rewards: Vec<Reward>,
+}
+
+pub trait Item: Eq + Clone {
+    fn name(&self) -> &str;
 }
 
 impl ExtractedData {

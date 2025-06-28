@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use color_eyre::{
     Section, SectionExt,
     eyre::{Result, eyre},
@@ -57,4 +59,25 @@ pub async fn scrape() -> Result<ExtractedData> {
     let data = ExtractedData::extract(&program)?;
 
     Ok(data)
+}
+
+#[instrument(skip(data))]
+pub async fn save_data(data: &ExtractedData, path: &Path) -> Result<()> {
+    let json = serde_json::to_string_pretty(data)
+        .map_err(|e| eyre!("Failed to serialize data to JSON: {e}"))?;
+
+    tokio::fs::write(path, json)
+        .await
+        .map_err(|e| eyre!("Failed to write data to file: {e}"))?;
+
+    Ok(())
+}
+
+#[instrument]
+pub async fn load_data(path: &Path) -> Result<ExtractedData> {
+    let json = tokio::fs::read_to_string(path)
+        .await
+        .map_err(|e| eyre!("Failed to read data from file: {e}"))?;
+
+    serde_json::from_str(&json).map_err(|e| eyre!("Failed to deserialize data from JSON: {e}"))
 }

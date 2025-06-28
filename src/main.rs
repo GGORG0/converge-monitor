@@ -1,15 +1,18 @@
-use std::sync::LazyLock;
+use std::{env::var, path::Path, sync::LazyLock, time::Duration};
 
 use color_eyre::eyre::Result;
 use dotenvy::dotenv;
 use reqwest::Client;
-use tracing::{level_filters::LevelFilter, warn};
+use tokio::time::{MissedTickBehavior, interval};
+use tracing::{error, level_filters::LevelFilter};
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{fmt::format::FmtSpan, layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::scraping::scrape;
+use crate::monitor::run;
 
+mod monitor;
 mod scraping;
+mod updates;
 
 static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
@@ -26,10 +29,25 @@ async fn main() -> Result<()> {
     dotenv().ok();
     init_tracing()?;
 
-    let data = scrape().await?;
-    dbg!(data);
+    let path = var("DATA_FILE").unwrap_or_else(|_| "data.json".to_string());
+    let path = Path::new(&path);
 
-    Ok(())
+    let update_interval = var("UPDATE_INTERVAL")
+        .ok()
+        .map(|s| s.parse::<u64>())
+        .transpose()?
+        .unwrap_or(60 * 5);
+
+    let mut timer = interval(Duration::from_secs(update_interval));
+    timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
+
+    loop {
+        timer.tick().await;
+
+        if let Err(e) = run(path).await {
+            error!(error = ?e);
+        }
+    }
 }
 
 fn init_tracing() -> Result<()> {

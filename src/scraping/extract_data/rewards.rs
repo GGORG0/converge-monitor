@@ -2,17 +2,24 @@ use std::collections::HashMap;
 
 use color_eyre::eyre::Result;
 use oxc_ast::ast::{ArrayExpressionElement, Expression, ObjectPropertyKind, Statement};
+use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-use crate::scraping::extract_data::top_level_elements::ArrowFn;
+use crate::scraping::extract_data::{Item, top_level_elements::ArrowFn};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Reward {
     title: String,
     desccription: String,
     color: (u8, u8, u8),
     tokens: u8,
     icon: Option<char>,
+}
+
+impl Item for Reward {
+    fn name(&self) -> &str {
+        &self.title
+    }
 }
 
 #[instrument(skip(root_element))]

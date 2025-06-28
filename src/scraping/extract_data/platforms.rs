@@ -4,14 +4,24 @@ use color_eyre::eyre::{ContextCompat, Result, bail};
 use oxc_ast::ast::{
     Argument, ArrayExpressionElement, Expression, ObjectPropertyKind, Program, Statement,
 };
+use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-use crate::scraping::extract_data::top_level_elements::{ArrowFn, get_top_level_elements};
+use crate::scraping::extract_data::{
+    Item,
+    top_level_elements::{ArrowFn, get_top_level_elements},
+};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Platform {
     name: String,
     image: String,
+}
+
+impl Item for Platform {
+    fn name(&self) -> &str {
+        &self.name
+    }
 }
 
 #[instrument(skip(program, root_element))]
@@ -48,9 +58,7 @@ pub fn get_platforms<'a>(
         if let Some(Argument::Identifier(ident)) = top_level_element.arguments.first() {
             ident.name
         } else {
-            bail!(
-                "Expected first argument of top-level element to be an Identifier"
-            );
+            bail!("Expected first argument of top-level element to be an Identifier");
         };
 
     // const ...,
