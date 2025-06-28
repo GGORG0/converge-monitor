@@ -3,7 +3,7 @@ use std::{env::var, path::Path, sync::LazyLock, time::Duration};
 use color_eyre::eyre::Result;
 use dotenvy::dotenv;
 use reqwest::Client;
-use rustls::crypto::aws_lc_rs;
+use rustls::crypto::ring;
 use slack_morphism::{
     SlackApiToken, SlackApiTokenValue, SlackClient, prelude::SlackClientHyperConnector,
 };
@@ -33,7 +33,7 @@ async fn main() -> Result<()> {
     dotenv().ok();
     init_tracing()?;
 
-    aws_lc_rs::default_provider().install_default().ok();
+    ring::default_provider().install_default().ok();
     let hyper_connector = SlackClientHyperConnector::new()?;
     let client = SlackClient::new(hyper_connector);
 
