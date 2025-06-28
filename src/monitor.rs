@@ -2,6 +2,7 @@ use std::{env::var, path::Path};
 
 use chrono::Utc;
 use color_eyre::eyre::Result;
+use slack_morphism::SlackBlocksTemplate;
 use tracing::info;
 
 use crate::{
@@ -55,6 +56,26 @@ pub async fn run(path: &Path) -> Result<()> {
     let notification_text = create_notification_text(&updates);
 
     info!("Updates: {notification_text}");
+
+    let blocks = updates
+        .iter()
+        .flat_map(|update| update.render_template())
+        .collect::<Vec<_>>();
+
+    if let Ok(block_log_path) = var("BLOCK_LOG_DIR") {
+        let now = Utc::now();
+
+        let block_log_path = Path::new(&block_log_path);
+        if !tokio::fs::try_exists(block_log_path).await? {
+            info!("Creating block log directory at {:?}", block_log_path);
+            tokio::fs::create_dir_all(block_log_path).await?;
+        }
+        let block_log_path = block_log_path.join(format!("blocks_{}.json", now.to_rfc3339()));
+
+        info!("Saving blocks to {:?}", block_log_path);
+        let blocks_json = serde_json::to_string_pretty(&blocks)?;
+        tokio::fs::write(block_log_path, blocks_json).await?;
+    }
 
     Ok(())
 }

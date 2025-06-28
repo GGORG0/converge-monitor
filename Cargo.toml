@@ -21,6 +21,7 @@ reqwest = { version = "0.12.20", default-features = false, features = [
 scraper = "0.23.1"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
+slack-morphism = "2.14.0"
 tokio = { version = "1.45.1", features = ["full"] }
 tracing = "0.1.41"
 tracing-error = "0.2.1"
@@ -33,7 +34,4 @@ tracing-subscriber = { version = "0.3.19", features = [
     "serde_json",
     "time",
 ] }
-
-# Optimize performance in debug builds
-[profile.dev.package.backtrace]
-opt-level = 3
+url = "2.5.4"

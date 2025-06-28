@@ -6,6 +6,7 @@ use oxc_ast::ast::{
 };
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
+use url::Url;
 
 use crate::scraping::extract_data::{
     Item,
@@ -14,8 +15,8 @@ use crate::scraping::extract_data::{
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Platform {
-    name: String,
-    image: String,
+    pub name: String,
+    pub image: Url,
 }
 
 impl Item for Platform {
@@ -194,7 +195,7 @@ pub fn get_platforms<'a>(
                 {
                     Some(Platform {
                         name: name.clone(),
-                        image: image.clone(),
+                        image: image.parse().ok()?,
                     })
                 } else {
                     None

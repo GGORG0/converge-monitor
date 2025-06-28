@@ -9,11 +9,11 @@ use crate::scraping::extract_data::{Item, top_level_elements::ArrowFn};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Reward {
-    title: String,
-    desccription: String,
-    color: (u8, u8, u8),
-    tokens: u8,
-    icon: Option<char>,
+    pub title: String,
+    pub description: String,
+    pub color: (u8, u8, u8),
+    pub tokens: u8,
+    pub icon: Option<char>,
 }
 
 impl Item for Reward {
@@ -144,7 +144,7 @@ pub fn get_rewards<'a>(root_element: &'a ArrowFn<'a>) -> Result<Vec<Reward>> {
 
                 Some(Reward {
                     title: title.clone(),
-                    desccription: description.clone(),
+                    description: description.clone(),
                     color,
                     tokens: tokens.parse().ok()?,
                     icon,
