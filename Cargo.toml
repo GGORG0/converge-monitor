@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 color-eyre = "0.6.5"
+dotenvy = "0.15.7"
 oxc_allocator = "0.75.0"
 oxc_ast = "0.75.0"
 oxc_ast_visit = { version = "0.75.0", features = ["serialize"] }

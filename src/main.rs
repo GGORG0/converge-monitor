@@ -1,8 +1,9 @@
 use std::sync::LazyLock;
 
 use color_eyre::eyre::Result;
+use dotenvy::dotenv;
 use reqwest::Client;
-use tracing::level_filters::LevelFilter;
+use tracing::{level_filters::LevelFilter, warn};
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{fmt::format::FmtSpan, layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -22,6 +23,7 @@ pub static HTTP_CLIENT: LazyLock<Client> = LazyLock::new(|| {
 #[tokio::main]
 async fn main() -> Result<()> {
     color_eyre::install()?;
+    dotenv().ok();
     init_tracing()?;
 
     let data = scrape().await?;
