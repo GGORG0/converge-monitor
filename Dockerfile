@@ -25,6 +25,12 @@ COPY --from=planner /app/recipe.json recipe.json
 ARG TARGETPLATFORM
 RUN xx-cargo --setup-target-triple
 
+RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
+      apk add --no-cache \
+        aarch64-linux-musl-gcc \
+        aarch64-linux-musl-musl-dev; \
+    fi
+
 # Build dependencies
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     xx-cargo chef cook --release --recipe-path recipe.json
