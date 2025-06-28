@@ -2,7 +2,12 @@ use std::{env::var, path::Path};
 
 use chrono::Utc;
 use color_eyre::eyre::Result;
-use slack_morphism::SlackBlocksTemplate;
+use hyper_rustls::HttpsConnector;
+use hyper_util::client::legacy::connect::HttpConnector;
+use slack_morphism::{
+    SlackBlocksTemplate, SlackChannelId, SlackClientSession, SlackMessageContent,
+    api::SlackApiChatPostMessageRequest, prelude::SlackClientHyperConnector,
+};
 use tracing::info;
 
 use crate::{
@@ -10,7 +15,16 @@ use crate::{
     updates::{Update, compare},
 };
 
-pub async fn run(path: &Path) -> Result<()> {
+const SLACK_BLOCK_LIMIT: usize = 50;
+
+pub async fn run(
+    path: &Path,
+    slack_session: &SlackClientSession<
+        '_,
+        SlackClientHyperConnector<HttpsConnector<HttpConnector>>,
+    >,
+    slack_channel: &SlackChannelId,
+) -> Result<()> {
     let data = scrape().await?;
 
     if !tokio::fs::try_exists(&path).await? {
@@ -75,6 +89,18 @@ pub async fn run(path: &Path) -> Result<()> {
         info!("Saving blocks to {:?}", block_log_path);
         let blocks_json = serde_json::to_string_pretty(&blocks)?;
         tokio::fs::write(block_log_path, blocks_json).await?;
+    }
+
+    for block_chunk in blocks.chunks(SLACK_BLOCK_LIMIT) {
+        let message = SlackMessageContent::new()
+            .with_text(notification_text.clone())
+            .with_blocks(block_chunk.to_vec());
+
+        let post_chat_req = SlackApiChatPostMessageRequest::new(slack_channel.clone(), message)
+            .with_unfurl_links(false)
+            .with_unfurl_media(false);
+
+        slack_session.chat_post_message(&post_chat_req).await?;
     }
 
     Ok(())

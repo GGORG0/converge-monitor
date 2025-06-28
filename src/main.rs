@@ -3,6 +3,10 @@ use std::{env::var, path::Path, sync::LazyLock, time::Duration};
 use color_eyre::eyre::Result;
 use dotenvy::dotenv;
 use reqwest::Client;
+use rustls::crypto::aws_lc_rs;
+use slack_morphism::{
+    SlackApiToken, SlackApiTokenValue, SlackClient, prelude::SlackClientHyperConnector,
+};
 use tokio::time::{MissedTickBehavior, interval};
 use tracing::{error, level_filters::LevelFilter};
 use tracing_error::ErrorLayer;
@@ -29,6 +33,16 @@ async fn main() -> Result<()> {
     dotenv().ok();
     init_tracing()?;
 
+    aws_lc_rs::default_provider().install_default().ok();
+    let hyper_connector = SlackClientHyperConnector::new()?;
+    let client = SlackClient::new(hyper_connector);
+
+    let token_value: SlackApiTokenValue = var("SLACK_XOXB")?.into();
+    let token = SlackApiToken::new(token_value);
+    let session = client.open_session(&token);
+
+    let channel = var("SLACK_CHANNEL")?.into();
+
     let path = var("DATA_FILE").unwrap_or_else(|_| "data.json".to_string());
     let path = Path::new(&path);
 
@@ -44,7 +58,7 @@ async fn main() -> Result<()> {
     loop {
         timer.tick().await;
 
-        if let Err(e) = run(path).await {
+        if let Err(e) = run(path, &session, &channel).await {
             error!(error = ?e);
         }
     }
