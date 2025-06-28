@@ -1,7 +1,7 @@
 use color_eyre::eyre::{ContextCompat, Result};
 use oxc_ast::ast::{
-    Argument, ArrayExpressionElement, ArrowFunctionExpression, Expression, ObjectPropertyKind,
-    Program, Statement,
+    Argument, ArrayExpressionElement, ArrowFunctionExpression, CallExpression, Expression,
+    ObjectPropertyKind, Program, Statement,
 };
 use tracing::instrument;
 
@@ -88,11 +88,15 @@ fn get_root_element_name(program: &Program) -> Result<String> {
 }
 
 #[instrument(skip(program))]
-fn get_top_level_element_names(program: &Program, root_element_name: &str) -> Result<Vec<String>> {
+pub fn get_root_element<'a>(
+    program: &'a Program,
+    root_element_name: &str,
+) -> Result<&'a oxc_allocator::Box<'a, ArrowFunctionExpression<'a>>> {
     // const ...,
-    //   Wm = () =>
-    //        ^^^^^...
-    //     x.jsxs("main", {
+    //   Bm = () => {
+    //        ^^^^^^^...
+    //     const ...;
+    //     return x.jsxs("main", {
     //       className: "flex flex-col w-full bg-[#fbfaf9]",
     //       "data-model-id": "3:27",
     //       children: [
@@ -105,6 +109,8 @@ fn get_top_level_element_names(program: &Program, root_element_name: &str) -> Re
     //         x.jsx(Qd, {}),
     //       ],
     //     });
+    //   };
+    //...^
     let root_element = program
         .body
         .iter()
@@ -112,7 +118,6 @@ fn get_top_level_element_names(program: &Program, root_element_name: &str) -> Re
             if let Statement::VariableDeclaration(var_decl) = node {
                 var_decl.declarations.iter().find_map(|decl| {
                     if let Some(Expression::ArrowFunctionExpression(arrow_func)) = &decl.init
-                        && arrow_func.expression
                         && let Some(name) = decl.id.get_identifier_name()
                         && name == root_element_name
                     {
@@ -127,10 +132,20 @@ fn get_top_level_element_names(program: &Program, root_element_name: &str) -> Re
         })
         .context("Failed to find root element function in program")?;
 
+    Ok(root_element)
+}
+
+pub type TopLevelElement<'a> = oxc_allocator::Box<'a, CallExpression<'a>>;
+
+#[instrument(skip(root_element))]
+fn get_all_top_level_elements<'a>(
+    root_element: &'a oxc_allocator::Box<'a, ArrowFunctionExpression<'a>>,
+) -> Result<Vec<&'a TopLevelElement<'a>>> {
     // const ...,
-    //   Wm = () =>
-    //     x.jsxs("main", {
-    //       ^^^^^^^^^^^^^^...
+    //   Bm = () => {
+    //     const ...;
+    //     return x.jsxs("main", {
+    //              ^^^^^^^^^^^^^^...
     //       className: "flex flex-col w-full bg-[#fbfaf9]",
     //       "data-model-id": "3:27",
     //       children: [
@@ -144,21 +159,25 @@ fn get_top_level_element_names(program: &Program, root_element_name: &str) -> Re
     //       ],
     //     });
     //  ...^^
-    let main_jsxs_call = if let Some(Statement::ExpressionStatement(expr_stmt)) =
-        &root_element.body.statements.first()
-        && let Expression::CallExpression(call_expr) = &expr_stmt.expression
-    {
-        call_expr
-    } else {
-        return Err(color_eyre::eyre::eyre!(
-            "Expected root element function body to be a CallExpression"
-        ));
-    };
+    //   };
+    let main_jsxs_call = root_element
+        .body
+        .statements
+        .iter()
+        .find_map(|stmt| {
+            if let Statement::ReturnStatement(ret_stmt) = stmt
+                && let Some(Expression::CallExpression(call_expr)) = &ret_stmt.argument
+                && call_expr.callee_name().is_some_and(|name| name == "jsxs")
+            {
+                Some(call_expr)
+            } else {
+                None
+            }
+        })
+        .context("Failed to find x.jsxs() call in root element function body")?;
 
-    // const ...,
-    //   Wm = () =>
-    //     x.jsxs("main", {
-    //                    ^...
+    //     return x.jsxs("main", {
+    //                           ^...
     //       className: "flex flex-col w-full bg-[#fbfaf9]",
     //       "data-model-id": "3:27",
     //       children: [
@@ -176,16 +195,16 @@ fn get_top_level_element_names(program: &Program, root_element_name: &str) -> Re
         main_jsxs_call
             .arguments
             .get(1)
-            .context("No second argument found in () => x.jsxs() call")?
+            .context("No second argument found in () => x.jsxs(\"main\") call")?
     {
         obj_expr
     } else {
         return Err(color_eyre::eyre::eyre!(
-            "Expected second argument of () => x.jsxs() to be an ObjectExpression"
+            "Expected second argument of () => x.jsxs(\"main\") to be an ObjectExpression"
         ));
     };
 
-    //     x.jsxs("main", {
+    //     return x.jsxs("main", {
     //       className: "flex flex-col w-full bg-[#fbfaf9]",
     //       "data-model-id": "3:27",
     //       children: [
@@ -214,21 +233,21 @@ fn get_top_level_element_names(program: &Program, root_element_name: &str) -> Re
             }
         })
         .context(
-            "Failed to find 'children: []' array expression property in () => x.jsxs() call props",
+            "Failed to find 'children: []' array expression property in () => x.jsxs(\"main\") call props",
         )?;
 
     //       children: [
     //         x.jsx(Vp, {}),
-    //               ^^
+    //           ^^^^^^^^^^^
     //         x.jsx(Bp, {}),
-    //               ^^...
+    //           ^^^^^^^^^^^...
     //         x.jsx($m, {}),
     //         x.jsx(Zp, {}),
     //         x.jsx(Up, {}),
     //         x.jsx(Hp, {}),
-    //            ...^^
+    //        ...^^^^^^^^^^^
     //         x.jsx(Qd, {}),
-    //               ^^
+    //           ^^^^^^^^^^^
     //       ],
     let top_level_elements = children_prop_array
         .elements
@@ -237,49 +256,15 @@ fn get_top_level_element_names(program: &Program, root_element_name: &str) -> Re
             if let ArrayExpressionElement::CallExpression(call_expr) = elem
                 && let Some(name) = call_expr.callee_name()
                 && (name == "jsx" || name == "jsxs")
-                && let Some(Argument::Identifier(ident)) = call_expr.arguments.first()
             {
-                Some(ident.name)
+                Some(call_expr)
             } else {
                 None
             }
         })
         .collect::<Vec<_>>();
 
-    Ok(top_level_elements
-        .into_iter()
-        .map(|s| s.into_string())
-        .collect())
-}
-
-pub type TopLevelElement<'a> = oxc_allocator::Box<'a, ArrowFunctionExpression<'a>>;
-
-#[instrument(skip(program))]
-fn get_top_level_elements<'a>(
-    program: &'a Program,
-    top_level_element_names: &[String],
-) -> Vec<&'a TopLevelElement<'a>> {
-    program
-        .body
-        .iter()
-        .filter_map(|node| {
-            if let Statement::VariableDeclaration(var_decl) = node {
-                var_decl.declarations.iter().find_map(|decl| {
-                    if let Some(Expression::ArrowFunctionExpression(arrow_func)) = &decl.init
-                        && arrow_func.expression
-                        && let Some(name) = decl.id.get_identifier_name()
-                        && top_level_element_names.contains(&name.into_string())
-                    {
-                        Some(arrow_func)
-                    } else {
-                        None
-                    }
-                })
-            } else {
-                None
-            }
-        })
-        .collect()
+    Ok(top_level_elements)
 }
 
 pub struct TopLevelElements<'a> {
@@ -287,29 +272,28 @@ pub struct TopLevelElements<'a> {
     pub reward_section: &'a TopLevelElement<'a>,
 }
 
-#[instrument(skip(all_top_level_elements))]
-fn pick_top_level_elements<'a>(
-    all_top_level_elements: Vec<&'a TopLevelElement<'a>>,
-) -> Result<TopLevelElements> {
-    if all_top_level_elements.len() != 7 {
-        return Err(color_eyre::eyre::eyre!(
-            "Expected 7 top-level elements, found {}",
-            all_top_level_elements.len()
-        ));
-    }
-
-    Ok(TopLevelElements {
-        platform_section: &all_top_level_elements[1],
-        reward_section: &all_top_level_elements[2],
-    })
-}
-
 #[instrument(skip(program))]
 pub fn extract_top_level_elements<'a>(program: &'a Program) -> Result<TopLevelElements<'a>> {
     let root_element_name = get_root_element_name(program)?;
-    let top_level_element_names = get_top_level_element_names(program, &root_element_name)?;
-    let all_top_level_elements = get_top_level_elements(program, &top_level_element_names);
-    let picked_top_level_elements = pick_top_level_elements(all_top_level_elements)?;
+    let root_element = get_root_element(program, &root_element_name)?;
+    let top_level_elements = get_all_top_level_elements(root_element)?;
 
-    Ok(picked_top_level_elements)
+    if top_level_elements.len() != 7 {
+        return Err(color_eyre::eyre::eyre!(
+            "Expected 7 top-level elements, found {}",
+            top_level_elements.len()
+        ));
+    }
+
+    let platform_section = top_level_elements
+        .get(1)
+        .context("Failed to find platform section top-level element")?;
+    let reward_section = top_level_elements
+        .get(2)
+        .context("Failed to find reward section top-level element")?;
+
+    Ok(TopLevelElements {
+        platform_section,
+        reward_section,
+    })
 }
