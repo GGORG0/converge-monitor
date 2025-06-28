@@ -7,9 +7,7 @@ use tracing_error::ErrorLayer;
 use tracing_subscriber::{fmt::format::FmtSpan, layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::scraping::{
-    extract_data::top_level_elements::{
-        get_root_element_name, get_top_level_element_names, get_top_level_elements,
-    },
+    extract_data::top_level_elements::extract_top_level_elements,
     get,
     js_estree::{get_js_estree, print_diagnostics},
     js_url::scrape_js_url,
@@ -46,13 +44,7 @@ async fn main() -> Result<()> {
 
     let program = parsed.program;
 
-    let root_element_name = get_root_element_name(&program)?;
-
-    let top_level_element_names = get_top_level_element_names(&program, &root_element_name)?;
-
-    let top_level_elements = get_top_level_elements(&program, &top_level_element_names);
-
-    dbg!(top_level_element_names);
+    let top_level_elements = extract_top_level_elements(&program)?;
 
     Ok(())
 }

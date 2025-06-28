@@ -6,7 +6,7 @@ use oxc_ast::ast::{
 use tracing::instrument;
 
 #[instrument(skip(program))]
-pub fn get_root_element_name(program: &Program) -> Result<String> {
+fn get_root_element_name(program: &Program) -> Result<String> {
     // Gd.createRoot(document.getElementById("app")).render(
     //   x.jsx(Y.StrictMode, { children: x.jsx(Wm, {}) })
     // );
@@ -88,10 +88,7 @@ pub fn get_root_element_name(program: &Program) -> Result<String> {
 }
 
 #[instrument(skip(program))]
-pub fn get_top_level_element_names(
-    program: &Program,
-    root_element_name: &str,
-) -> Result<Vec<String>> {
+fn get_top_level_element_names(program: &Program, root_element_name: &str) -> Result<Vec<String>> {
     // const ...,
     //   Wm = () =>
     //        ^^^^^...
@@ -255,11 +252,13 @@ pub fn get_top_level_element_names(
         .collect())
 }
 
+pub type TopLevelElement<'a> = oxc_allocator::Box<'a, ArrowFunctionExpression<'a>>;
+
 #[instrument(skip(program))]
-pub fn get_top_level_elements<'a>(
+fn get_top_level_elements<'a>(
     program: &'a Program,
     top_level_element_names: &[String],
-) -> Vec<&'a oxc_allocator::Box<'a, ArrowFunctionExpression<'a>>> {
+) -> Vec<&'a TopLevelElement<'a>> {
     program
         .body
         .iter()
@@ -281,4 +280,36 @@ pub fn get_top_level_elements<'a>(
             }
         })
         .collect()
+}
+
+pub struct TopLevelElements<'a> {
+    pub platform_section: &'a TopLevelElement<'a>,
+    pub reward_section: &'a TopLevelElement<'a>,
+}
+
+#[instrument(skip(all_top_level_elements))]
+fn pick_top_level_elements<'a>(
+    all_top_level_elements: Vec<&'a TopLevelElement<'a>>,
+) -> Result<TopLevelElements> {
+    if all_top_level_elements.len() != 7 {
+        return Err(color_eyre::eyre::eyre!(
+            "Expected 7 top-level elements, found {}",
+            all_top_level_elements.len()
+        ));
+    }
+
+    Ok(TopLevelElements {
+        platform_section: &all_top_level_elements[1],
+        reward_section: &all_top_level_elements[2],
+    })
+}
+
+#[instrument(skip(program))]
+pub fn extract_top_level_elements<'a>(program: &'a Program) -> Result<TopLevelElements<'a>> {
+    let root_element_name = get_root_element_name(program)?;
+    let top_level_element_names = get_top_level_element_names(program, &root_element_name)?;
+    let all_top_level_elements = get_top_level_elements(program, &top_level_element_names);
+    let picked_top_level_elements = pick_top_level_elements(all_top_level_elements)?;
+
+    Ok(picked_top_level_elements)
 }
