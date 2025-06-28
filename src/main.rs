@@ -9,6 +9,7 @@ use tracing_subscriber::{fmt::format::FmtSpan, layer::SubscriberExt, util::Subsc
 use crate::scraping::{
     extract_data::{
         platforms::get_platforms,
+        rewards::get_rewards,
         top_level_elements::{extract_root_element, extract_top_level_elements},
     },
     get,
@@ -53,6 +54,9 @@ async fn main() -> Result<()> {
     let platform_section = top_level_elements.platform_section;
     let platforms = get_platforms(&program, platform_section)?;
     dbg!(platforms);
+
+    let rewards = get_rewards(root_element)?;
+    dbg!(rewards);
 
     Ok(())
 }

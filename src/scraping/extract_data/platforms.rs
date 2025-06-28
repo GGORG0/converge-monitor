@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use color_eyre::eyre::{ContextCompat, Result};
+use color_eyre::eyre::{ContextCompat, Result, eyre};
 use oxc_ast::ast::{
     Argument, ArrayExpressionElement, Expression, ObjectPropertyKind, Program, Statement,
 };
@@ -25,7 +25,7 @@ pub fn get_platforms<'a>(
         if let Some(Argument::Identifier(ident)) = top_level_element.arguments.first() {
             ident.name
         } else {
-            return Err(color_eyre::eyre::eyre!(
+            return Err(eyre!(
                 "Expected first argument of top-level element to be an Identifier"
             ));
         };

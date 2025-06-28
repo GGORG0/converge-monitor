@@ -1,4 +1,4 @@
-use color_eyre::eyre::{ContextCompat, Result};
+use color_eyre::eyre::{eyre, ContextCompat, Result};
 use oxc_ast::ast::{
     Argument, ArrayExpressionElement, ArrowFunctionExpression, CallExpression, Expression,
     ObjectPropertyKind, Program, Statement,
@@ -40,7 +40,7 @@ fn get_root_element_name(program: &Program) -> Result<String> {
     {
         call_expr
     } else {
-        return Err(color_eyre::eyre::eyre!(
+        return Err(eyre!(
             "Expected first (and only) argument of createRoot().render() to be a CallExpression"
         ));
     };
@@ -54,7 +54,7 @@ fn get_root_element_name(program: &Program) -> Result<String> {
     {
         obj_expr
     } else {
-        return Err(color_eyre::eyre::eyre!(
+        return Err(eyre!(
             "Expected second argument of createRoot().render(x.jsx()) to be an ObjectExpression"
         ));
     };
@@ -81,7 +81,7 @@ fn get_root_element_name(program: &Program) -> Result<String> {
     {
         ident.name
     } else {
-        return Err(color_eyre::eyre::eyre!(
+        return Err(eyre!(
             "Expected first argument of 'children: x.jsx()' call expression to be an Identifier"
         ));
     };
@@ -206,7 +206,7 @@ fn get_all_top_level_elements<'a>(
     {
         obj_expr
     } else {
-        return Err(color_eyre::eyre::eyre!(
+        return Err(eyre!(
             "Expected second argument of () => x.jsxs(\"main\") to be an ObjectExpression"
         ));
     };
@@ -286,7 +286,7 @@ pub fn extract_top_level_elements<'a>(
     let top_level_elements = get_all_top_level_elements(root_element)?;
 
     if top_level_elements.len() != 7 {
-        return Err(color_eyre::eyre::eyre!(
+        return Err(eyre!(
             "Expected 7 top-level elements, found {}",
             top_level_elements.len()
         ));
