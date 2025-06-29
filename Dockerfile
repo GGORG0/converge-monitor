@@ -7,8 +7,11 @@ RUN cargo install --path .
 FROM debian AS app
 WORKDIR /root
 
-COPY --from=app-builder /usr/local/cargo/bin/converge-monitor /usr/local/bin/converge-monitor
+RUN apt-get update && \
+  apt-get install -y ca-certificates && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/*
 
-EXPOSE 8080
+COPY --from=app-builder /usr/local/cargo/bin/converge-monitor /usr/local/bin/converge-monitor
 
 CMD [ "converge-monitor" ]
