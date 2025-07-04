@@ -12,7 +12,7 @@ use tracing::info;
 
 use crate::{
     scraping::{load_data, save_data, scrape},
-    updates::{Update, compare},
+    updates::{Update, UsergroupPing, compare},
 };
 
 const SLACK_BLOCK_LIMIT: usize = 50;
@@ -24,6 +24,7 @@ pub async fn run(
         SlackClientHyperConnector<HttpsConnector<HttpConnector>>,
     >,
     slack_channel: &SlackChannelId,
+    usergroup_ping: &Option<UsergroupPing>,
 ) -> Result<()> {
     let data = scrape().await?;
 
@@ -99,6 +100,19 @@ pub async fn run(
         let post_chat_req = SlackApiChatPostMessageRequest::new(slack_channel.clone(), message)
             .with_unfurl_links(false)
             .with_unfurl_media(false);
+
+        slack_session.chat_post_message(&post_chat_req).await?;
+    }
+
+    if let Some(usergroup_ping) = usergroup_ping {
+        let usergroup_ping_message = SlackMessageContent::new()
+            .with_text(notification_text)
+            .with_blocks(usergroup_ping.render_template());
+
+        let post_chat_req =
+            SlackApiChatPostMessageRequest::new(slack_channel.clone(), usergroup_ping_message)
+                .with_unfurl_links(false)
+                .with_unfurl_media(false);
 
         slack_session.chat_post_message(&post_chat_req).await?;
     }

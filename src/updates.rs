@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use slack_morphism::{
     SlackBlocksTemplate,
     blocks::{
-        SlackBlock, SlackBlockMarkDownText, SlackBlockPlainText, SlackHeaderBlock, SlackImageBlock,
-        SlackSectionBlock,
+        SlackBlock, SlackBlockMarkDownText, SlackBlockPlainText, SlackContextBlock,
+        SlackHeaderBlock, SlackImageBlock, SlackSectionBlock,
     },
 };
 
@@ -252,5 +252,32 @@ impl SlackBlocksTemplate for ItemUpdate<Reward> {
         .into_iter()
         .flatten()
         .collect()
+    }
+}
+
+pub struct UsergroupPing {
+    usergroup_id: String,
+}
+
+impl UsergroupPing {
+    pub fn new() -> Option<Self> {
+        let usergroup_id = std::env::var("SLACK_USERGROUP_ID").ok()?;
+        Some(UsergroupPing { usergroup_id })
+    }
+}
+
+impl SlackBlocksTemplate for UsergroupPing {
+    fn render_template(&self) -> Vec<SlackBlock> {
+        vec![
+            SlackContextBlock::new(vec![
+                SlackBlockMarkDownText::new(format!(
+                    "pinging <!subteam^{}> ·<{}|>",
+                    self.usergroup_id,
+                    env!("CARGO_PKG_REPOSITORY")
+                ))
+                .into(),
+            ])
+            .into(),
+        ]
     }
 }

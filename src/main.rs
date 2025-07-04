@@ -12,7 +12,7 @@ use tracing::{error, level_filters::LevelFilter};
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{fmt::format::FmtSpan, layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::monitor::run;
+use crate::{monitor::run, updates::UsergroupPing};
 
 mod monitor;
 mod scraping;
@@ -52,13 +52,15 @@ async fn main() -> Result<()> {
         .transpose()?
         .unwrap_or(60 * 5);
 
+    let usergroup_ping = UsergroupPing::new();
+
     let mut timer = interval(Duration::from_secs(update_interval));
     timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
     loop {
         timer.tick().await;
 
-        if let Err(e) = run(path, &session, &channel).await {
+        if let Err(e) = run(path, &session, &channel, &usergroup_ping).await {
             error!(error = ?e);
         }
     }

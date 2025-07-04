@@ -16,6 +16,7 @@ Converge Monitor is a monitor for Hack Club's [Converge YSWS](https://converge.h
     BLOCK_LOG_DIR=block_log # defaults to none, will log all sent Slack blocks
     SLACK_XOXB=xoxb-...
     SLACK_CHANNEL=... # channel id or #channel-name
+    SLACK_USERGROUP_ID=... # optional
    ```
 
 2. `cargo run`
