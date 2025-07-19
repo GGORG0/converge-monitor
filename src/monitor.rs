@@ -1,19 +1,30 @@
 use std::{env::var, path::Path};
 
 use chrono::Utc;
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{Result, eyre};
 use hyper_rustls::HttpsConnector;
 use hyper_util::client::legacy::connect::HttpConnector;
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
 use slack_morphism::{
     SlackBlocksTemplate, SlackChannelId, SlackClientSession, SlackMessageContent,
     api::SlackApiChatPostMessageRequest, prelude::SlackClientHyperConnector,
 };
-use tracing::info;
+use tracing::{info, instrument};
+use url::Url;
 
 use crate::{
-    scraping::{load_data, save_data, scrape},
-    updates::{Update, UsergroupPing, compare},
+    scraping::scrape,
+    updates::{RewardUpdate, UsergroupPing, compare},
 };
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Reward {
+    pub title: String,
+    pub description: String,
+    pub tokens: u8,
+    pub image_url: Url,
+}
 
 const SLACK_BLOCK_LIMIT: usize = 50;
 
@@ -25,8 +36,9 @@ pub async fn run(
     >,
     slack_channel: &SlackChannelId,
     usergroup_ping: &Option<UsergroupPing>,
+    http_client: &Client,
 ) -> Result<()> {
-    let data = scrape().await?;
+    let data = scrape(http_client).await?;
 
     if !tokio::fs::try_exists(&path).await? {
         info!("Data file does not exist, creating it at {:?}", &path);
@@ -40,14 +52,7 @@ pub async fn run(
         return Ok(());
     }
 
-    let platform_updates = compare(&old_data.platforms, &data.platforms);
-    let reward_updates = compare(&old_data.rewards, &data.rewards);
-
-    let updates: Vec<Update> = platform_updates
-        .into_iter()
-        .map(Into::into)
-        .chain(reward_updates.into_iter().map(Into::into))
-        .collect();
+    let updates = compare(&old_data, &data);
 
     save_data(&data, path).await?;
 
@@ -120,13 +125,13 @@ pub async fn run(
     Ok(())
 }
 
-fn create_notification_text(updates: &[Update]) -> String {
+fn create_notification_text(updates: &[RewardUpdate]) -> String {
     let mut notification_texts = Vec::new();
 
     let new_items = updates
         .iter()
         .filter_map(|update| {
-            if update.is_new() {
+            if matches!(update, RewardUpdate::New(_)) {
                 Some(update.item_name())
             } else {
                 None
@@ -141,7 +146,7 @@ fn create_notification_text(updates: &[Update]) -> String {
     let updated_items = updates
         .iter()
         .filter_map(|update| {
-            if update.is_updated() {
+            if matches!(update, RewardUpdate::Updated { .. }) {
                 Some(update.item_name())
             } else {
                 None
@@ -156,7 +161,7 @@ fn create_notification_text(updates: &[Update]) -> String {
     let removed_items = updates
         .iter()
         .filter_map(|update| {
-            if update.is_removed() {
+            if matches!(update, RewardUpdate::Removed(_)) {
                 Some(update.item_name())
             } else {
                 None
@@ -169,4 +174,25 @@ fn create_notification_text(updates: &[Update]) -> String {
     }
 
     notification_texts.join(" · ").trim().to_string()
+}
+
+#[instrument(skip(data))]
+pub async fn save_data(data: &Vec<Reward>, path: &Path) -> Result<()> {
+    let json = serde_json::to_string_pretty(data)
+        .map_err(|e| eyre!("Failed to serialize data to JSON: {e}"))?;
+
+    tokio::fs::write(path, json)
+        .await
+        .map_err(|e| eyre!("Failed to write data to file: {e}"))?;
+
+    Ok(())
+}
+
+#[instrument]
+pub async fn load_data(path: &Path) -> Result<Vec<Reward>> {
+    let json = tokio::fs::read_to_string(path)
+        .await
+        .map_err(|e| eyre!("Failed to read data from file: {e}"))?;
+
+    serde_json::from_str(&json).map_err(|e| eyre!("Failed to deserialize data from JSON: {e}"))
 }

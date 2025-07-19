@@ -1,8 +1,13 @@
-use std::{env::var, path::Path, sync::LazyLock, time::Duration};
+use std::{
+    env::{self, var},
+    path::Path,
+    sync::Arc,
+    time::Duration,
+};
 
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{Result, eyre};
 use dotenvy::dotenv;
-use reqwest::Client;
+use reqwest::{Client, cookie::Jar};
 use rustls::crypto::aws_lc_rs;
 use slack_morphism::{
     SlackApiToken, SlackApiTokenValue, SlackClient, prelude::SlackClientHyperConnector,
@@ -12,20 +17,13 @@ use tracing::{error, level_filters::LevelFilter};
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{fmt::format::FmtSpan, layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::{monitor::run, updates::UsergroupPing};
+use crate::{monitor::run, scraping::EMPORIUM_URL, updates::UsergroupPing};
 
 mod monitor;
 mod scraping;
 mod updates;
 
 static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
-
-pub static HTTP_CLIENT: LazyLock<Client> = LazyLock::new(|| {
-    Client::builder()
-        .user_agent(APP_USER_AGENT)
-        .build()
-        .expect("Failed to build HTTP client")
-});
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -36,6 +34,8 @@ async fn main() -> Result<()> {
     aws_lc_rs::default_provider().install_default().ok();
     let hyper_connector = SlackClientHyperConnector::new()?;
     let client = SlackClient::new(hyper_connector);
+
+    let http_client = init_reqwest()?;
 
     let token_value: SlackApiTokenValue = var("SLACK_XOXB")?.into();
     let token = SlackApiToken::new(token_value);
@@ -60,7 +60,7 @@ async fn main() -> Result<()> {
     loop {
         timer.tick().await;
 
-        if let Err(e) = run(path, &session, &channel, &usergroup_ping).await {
+        if let Err(e) = run(path, &session, &channel, &usergroup_ping, &http_client).await {
             error!(error = ?e);
         }
     }
@@ -78,4 +78,20 @@ fn init_tracing() -> Result<()> {
         .try_init()?;
 
     Ok(())
+}
+
+fn init_reqwest() -> Result<Client> {
+    let jar = Jar::default();
+    let cookie = env::var("COOKIE").map_err(|_| eyre!("COOKIE environment variable not set"))?;
+
+    jar.add_cookie_str(&cookie, &EMPORIUM_URL);
+
+    let jar = Arc::new(jar);
+
+    let client = Client::builder()
+        .user_agent(APP_USER_AGENT)
+        .cookie_provider(jar)
+        .build()?;
+
+    Ok(client)
 }

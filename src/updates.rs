@@ -1,202 +1,81 @@
 use serde::{Deserialize, Serialize};
 use slack_morphism::{
-    SlackBlocksTemplate,
     blocks::{
-        SlackBlock, SlackBlockMarkDownText, SlackBlockPlainText, SlackContextBlock,
-        SlackHeaderBlock, SlackImageBlock, SlackSectionBlock,
-    },
+        SlackBlock, SlackBlockMarkDownText, SlackBlockPlainText, SlackContextBlock, SlackHeaderBlock, SlackImageBlock, SlackSectionBlock
+    }, SlackBlocksTemplate
 };
 
-use crate::scraping::extract_data::{Item, platforms::Platform, rewards::Reward};
+use crate::monitor::Reward;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Update {
-    Platform(ItemUpdate<Platform>),
-    Reward(ItemUpdate<Reward>),
+pub enum RewardUpdate {
+    New(Reward),
+    Updated { old: Reward, new: Reward },
+    Removed(Reward),
 }
 
-impl Update {
+impl RewardUpdate {
     pub fn item_name(&self) -> &str {
         match self {
-            Update::Platform(update) => update.item_name(),
-            Update::Reward(update) => update.item_name(),
-        }
-    }
-
-    pub fn is_new(&self) -> bool {
-        matches!(
-            self,
-            Update::Platform(ItemUpdate::New(_)) | Update::Reward(ItemUpdate::New(_))
-        )
-    }
-
-    pub fn is_updated(&self) -> bool {
-        matches!(
-            self,
-            Update::Platform(ItemUpdate::Updated { .. })
-                | Update::Reward(ItemUpdate::Updated { .. })
-        )
-    }
-
-    pub fn is_removed(&self) -> bool {
-        matches!(
-            self,
-            Update::Platform(ItemUpdate::Removed(_)) | Update::Reward(ItemUpdate::Removed(_))
-        )
-    }
-}
-
-impl From<ItemUpdate<Platform>> for Update {
-    fn from(update: ItemUpdate<Platform>) -> Self {
-        Update::Platform(update)
-    }
-}
-
-impl From<ItemUpdate<Reward>> for Update {
-    fn from(update: ItemUpdate<Reward>) -> Self {
-        Update::Reward(update)
-    }
-}
-
-impl SlackBlocksTemplate for Update {
-    fn render_template(&self) -> Vec<SlackBlock> {
-        match self {
-            Update::Platform(update) => update.render_template(),
-            Update::Reward(update) => update.render_template(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ItemUpdate<T: Item> {
-    New(T),
-    Updated { old: T, new: T },
-    Removed(T),
-}
-
-impl<T: Item> ItemUpdate<T> {
-    pub fn item_name(&self) -> &str {
-        match self {
-            ItemUpdate::New(item) => item.name(),
-            ItemUpdate::Updated { new, .. } => new.name(),
-            ItemUpdate::Removed(item) => item.name(),
+            RewardUpdate::New(item) => &item.title,
+            RewardUpdate::Updated { new, .. } => &new.title,
+            RewardUpdate::Removed(item) => &item.title,
         }
     }
 
     fn emoji(&self) -> &str {
         match self {
-            ItemUpdate::New(_) => ":new:",
-            ItemUpdate::Updated { .. } => ":arrows_counterclockwise:",
-            ItemUpdate::Removed(_) => ":win10-trash:",
+            RewardUpdate::New(_) => ":new:",
+            RewardUpdate::Updated { .. } => ":arrows_counterclockwise:",
+            RewardUpdate::Removed(_) => ":win10-trash:",
         }
     }
 
-    pub fn item(&self) -> &T {
+    pub fn item(&self) -> &Reward {
         match self {
-            ItemUpdate::New(item) => item,
-            ItemUpdate::Updated { new, .. } => new,
-            ItemUpdate::Removed(item) => item,
+            RewardUpdate::New(item) => item,
+            RewardUpdate::Updated { new, .. } => new,
+            RewardUpdate::Removed(item) => item,
         }
     }
 
-    pub fn old_item(&self) -> Option<&T> {
+    pub fn old_item(&self) -> Option<&Reward> {
         match self {
-            ItemUpdate::Updated { old, .. } => Some(old),
+            RewardUpdate::Updated { old, .. } => Some(old),
             _ => None,
         }
     }
 }
 
-pub fn compare<T: Item>(old: &[T], new: &[T]) -> Vec<ItemUpdate<T>> {
+pub fn compare(old: &[Reward], new: &[Reward]) -> Vec<RewardUpdate> {
     let mut updates = Vec::new();
 
     for new_item in new {
-        if let Some(old_item) = old
-            .iter()
-            .find(|old_item| old_item.name() == new_item.name())
-        {
+        if let Some(old_item) = old.iter().find(|old_item| old_item.title == new_item.title) {
             if old_item != new_item {
-                updates.push(ItemUpdate::Updated {
+                updates.push(RewardUpdate::Updated {
                     old: old_item.clone(),
                     new: new_item.clone(),
                 });
             }
         } else {
-            updates.push(ItemUpdate::New(new_item.clone()));
+            updates.push(RewardUpdate::New(new_item.clone()));
         }
     }
 
     for old_item in old {
-        if !new
-            .iter()
-            .any(|new_item| new_item.name() == old_item.name())
-        {
-            updates.push(ItemUpdate::Removed(old_item.clone()));
+        if !new.iter().any(|new_item| new_item.title == old_item.title) {
+            updates.push(RewardUpdate::Removed(old_item.clone()));
         }
     }
 
     updates
 }
 
-impl SlackBlocksTemplate for ItemUpdate<Platform> {
-    fn render_template(&self) -> Vec<SlackBlock> {
-        let image_url = self.item().image.clone();
-        let old_image_url = self
-            .old_item()
-            .map(|item| item.image.clone())
-            .filter(|old_image_url| old_image_url != &image_url);
-
-        vec![
-            Some(
-                SlackHeaderBlock::new(
-                    SlackBlockPlainText::new(format!(
-                        "{} Platform: {}",
-                        self.emoji(),
-                        self.item_name()
-                    ))
-                    .into(),
-                )
-                .into(),
-            ),
-            old_image_url.map(|old_image_url| {
-                SlackImageBlock::new(
-                    old_image_url.into(),
-                    format!("Old {} logo", self.item_name()),
-                )
-                .into()
-            }),
-            Some(
-                SlackImageBlock::new(image_url.into(), format!("{} logo", self.item_name())).into(),
-            ),
-        ]
-        .into_iter()
-        .flatten()
-        .collect()
-    }
-}
-
-impl SlackBlocksTemplate for ItemUpdate<Reward> {
+impl SlackBlocksTemplate for RewardUpdate {
     fn render_template(&self) -> Vec<SlackBlock> {
         let item = self.item();
         let old_item = self.old_item();
-
-        let icon_text = old_item
-            .and_then(|old_item| {
-                if old_item.icon != item.icon {
-                    let old_icon = old_item
-                        .icon
-                        .map(|icon| icon.to_string())
-                        .unwrap_or(":no_entry_sign:".to_string());
-                    let new_icon = item
-                        .icon
-                        .map(|icon| icon.to_string())
-                        .unwrap_or(":no_entry_sign:".to_string());
-                    Some(format!("({old_icon} → {new_icon}) "))
-                } else {
-                    None
-                }
-            })
-            .unwrap_or_else(|| item.icon.map(|icon| format!("{icon} ")).unwrap_or_default());
 
         let token_text = old_item
             .and_then(|old_item| {
@@ -230,13 +109,17 @@ impl SlackBlocksTemplate for ItemUpdate<Reward> {
             })
             .unwrap_or_else(|| item.description.clone());
 
+        let image_url = item.image_url.clone();
+        let old_image_url = old_item
+            .map(|old_item| old_item.image_url.clone())
+            .filter(|old_image_url| old_image_url != &image_url);
+
         vec![
             Some(
                 SlackHeaderBlock::new(
                     SlackBlockPlainText::new(format!(
-                        "{} Reward: {}{} (:coin: {token_text})",
+                        "{} Reward: {} (:coin: {token_text})",
                         self.emoji(),
-                        icon_text,
                         self.item_name()
                     ))
                     .into(),
@@ -248,6 +131,19 @@ impl SlackBlocksTemplate for ItemUpdate<Reward> {
                     .with_text(SlackBlockMarkDownText::new(description_text).into())
                     .into(),
             ),
+            old_image_url.map(|old_image_url| {
+                SlackImageBlock::new(
+                    old_image_url.into(),
+                    format!("Old {} logo", self.item_name()),
+                )
+                .into()
+            }),
+            Some(
+                SlackImageBlock::new(
+                    image_url.into(),
+                    format!("{} logo", self.item_name())
+                ).into()
+            )
         ]
         .into_iter()
         .flatten()
@@ -271,7 +167,7 @@ impl SlackBlocksTemplate for UsergroupPing {
         vec![
             SlackContextBlock::new(vec![
                 SlackBlockMarkDownText::new(format!(
-                    "pinging <!subteam^{}> ·<{}|>",
+                    "pinging <!subteam^{}> · <{}|>",
                     self.usergroup_id,
                     env!("CARGO_PKG_REPOSITORY")
                 ))

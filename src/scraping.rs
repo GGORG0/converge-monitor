@@ -1,83 +1,71 @@
-use std::path::Path;
+use std::{env, sync::LazyLock};
 
-use color_eyre::{
-    Section, SectionExt,
-    eyre::{Result, eyre},
-};
+use color_eyre::eyre::{OptionExt, Report, Result};
+use reqwest::Client;
+use scraper::{Html, Selector};
 use tracing::instrument;
+use url::Url;
 
-use crate::{
-    HTTP_CLIENT,
-    scraping::{
-        extract_data::ExtractedData,
-        js_estree::{get_js_estree, print_diagnostics},
-        js_url::scrape_js_url,
-    },
-};
+use crate::monitor::Reward;
 
-pub mod extract_data;
-pub mod js_estree;
-pub mod js_url;
+pub static EMPORIUM_URL: LazyLock<Url> = LazyLock::new(|| {
+    env::var("BASE_URL")
+        .unwrap_or_else(|_| "https://emporium.hackclub.com".to_string())
+        .parse()
+        .expect("Invalid BASE_URL")
+});
 
-const BASE_URL: &str = "https://converge.hackclub.com";
+static ITEM_SELECTOR: LazyLock<Selector> =
+    LazyLock::new(|| Selector::parse("body > div > div > main > div > ul > div").unwrap());
 
-#[instrument]
-pub async fn get(url: &str) -> Result<String> {
-    Ok(HTTP_CLIENT.get(url).send().await?.text().await?)
-}
+#[instrument(skip(http_client))]
+pub async fn scrape(http_client: &Client) -> Result<Vec<Reward>> {
+    let html = http_client
+        .get(EMPORIUM_URL.as_str())
+        .send()
+        .await?
+        .text()
+        .await?;
 
-#[instrument]
-pub async fn scrape() -> Result<ExtractedData> {
-    let js_url = scrape_js_url().await?;
-    let js = get(&js_url).await?;
+    let html = Html::parse_document(&html);
 
-    let js_binding = js.clone();
-    let parsed = get_js_estree(&js_binding).await?;
+    let rewards = html
+        .select(&ITEM_SELECTOR)
+        .map(|item| {
+            let image = item
+                .select(&Selector::parse("img").unwrap())
+                .next()
+                .ok_or_eyre("Image child not found")?;
+            let title = item
+                .select(&Selector::parse("h3").unwrap())
+                .next()
+                .ok_or_eyre("Title tag not found")?;
+            let description = item
+                .select(&Selector::parse("p").unwrap())
+                .next()
+                .ok_or_eyre("Description tag not found")?;
+            let price = item
+                .select(&Selector::parse("div > span").unwrap())
+                .next()
+                .ok_or_eyre("Price tag not found")?;
 
-    if !parsed.errors.is_empty() {
-        print_diagnostics(parsed.errors.clone(), js.clone());
-    }
-    if parsed.panicked {
-        return Err(if parsed.errors.is_empty() {
-            eyre!("Parsing JS panicked")
-        } else {
-            parsed
-                .errors
-                .into_iter()
-                .map(|diagnostic| diagnostic.with_source_code(js.clone()))
-                .enumerate()
-                .fold(eyre!("Parsing JS panicked"), |err, (idx, diagnostic)| {
-                    err.with_section(|| {
-                        format!("{diagnostic:?}").header(format!("Diagnostic #{}", idx + 1))
-                    })
-                })
-        });
-    }
+            Ok::<_, Report>(Reward {
+                title: title.text().collect(),
+                description: description.text().collect(),
+                tokens: price
+                    .text()
+                    .collect::<String>()
+                    .split(' ')
+                    .next()
+                    .ok_or_eyre("Price string invalid")?
+                    .parse()?,
+                image_url: image
+                    .attr("src")
+                    .ok_or_eyre("Image tag doesn't have src attr")?
+                    .parse()?,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
 
-    let program = parsed.program;
-
-    let data = ExtractedData::extract(&program)?;
-
-    Ok(data)
-}
-
-#[instrument(skip(data))]
-pub async fn save_data(data: &ExtractedData, path: &Path) -> Result<()> {
-    let json = serde_json::to_string_pretty(data)
-        .map_err(|e| eyre!("Failed to serialize data to JSON: {e}"))?;
-
-    tokio::fs::write(path, json)
-        .await
-        .map_err(|e| eyre!("Failed to write data to file: {e}"))?;
-
-    Ok(())
-}
-
-#[instrument]
-pub async fn load_data(path: &Path) -> Result<ExtractedData> {
-    let json = tokio::fs::read_to_string(path)
-        .await
-        .map_err(|e| eyre!("Failed to read data from file: {e}"))?;
-
-    serde_json::from_str(&json).map_err(|e| eyre!("Failed to deserialize data from JSON: {e}"))
+    Ok(rewards)
 }
